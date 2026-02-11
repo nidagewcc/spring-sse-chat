@@ -1,11 +1,13 @@
 package org.example.chatdemo.component;
 
+import com.alibaba.fastjson2.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -70,6 +72,7 @@ public class SseClient {
             return false;
         }
         try {
+            message = uid + ":" + message;
             sseEmitter.send(SseEmitter.event().id(messageId).reconnectTime(60 * 1000L).data(message));
             log.info("用户{},消息id:{},推送成功:{}", uid, messageId, message);
             return true;
@@ -77,6 +80,33 @@ public class SseClient {
             sseMap.remove(uid);
             runningMap.remove(uid);
             log.error("用户{},消息id:{},推送异常:{}", uid, messageId, e.getMessage());
+            sseEmitter.complete();
+            return false;
+        }
+    }
+
+    public boolean sendMessage(String tuid, String messageId, String message, String myuid) {
+        if (StringUtils.isBlank(message)) {
+            log.warn("参数异常tuid:[{}]，msg为null", tuid);
+            return false;
+        }
+        SseEmitter sseEmitter = sseMap.get(tuid);
+        if (sseEmitter == null) {
+            log.warn("消息推送失败tuid:[{}],没有创建连接，请重试。", tuid);
+            return false;
+        }
+        try {
+            Map<String, String> sendBody = new HashMap<>();
+            sendBody.put("tuid", tuid);
+            sendBody.put("myuid", myuid);
+            sendBody.put("message", message);
+            sseEmitter.send(SseEmitter.event().id(messageId).reconnectTime(60 * 1000L).data(JSON.toJSONString(sendBody)));
+            log.info("用户{},消息id:{},推送成功:{}", tuid, messageId, message);
+            return true;
+        } catch (Exception e) {
+            sseMap.remove(tuid);
+            runningMap.remove(tuid);
+            log.error("用户{},消息id:{},推送异常:{}", tuid, messageId, e.getMessage());
             sseEmitter.complete();
             return false;
         }

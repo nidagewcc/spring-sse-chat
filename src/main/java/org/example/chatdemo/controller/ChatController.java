@@ -20,11 +20,23 @@ public class ChatController {
     private final SseClient sseClient;
 
     @GetMapping(value = "/createSse")
-    public SseEmitter createSse(@RequestParam String myAccount, @RequestParam(required = false) String targetAccount) {
-        sseClient.sendMessage(targetAccount, UUID.randomUUID().toString(), String.format("用户[%s]上线了，我们开始聊天吧", myAccount));
-        return sseClient.createSee(myAccount);
+    public SseEmitter createSse(@RequestParam String myAccount) {
+        final SseEmitter see = sseClient.createSee(myAccount);
+        SseClient.sseMap.forEach((k, v) -> {
+            if (!k.equals(myAccount)) {
+                sseClient.sendMessage(k, UUID.randomUUID().toString(), String.format("用户[%s]上线了，我们开始聊天吧", myAccount), "系统");
+            }
+        });
+        return see;
     }
 
+    @GetMapping(value = "/say", produces = "text/event-stream")
+    public String say(@RequestParam String myAccount, @RequestParam String msg) {
+        SseClient.sseMap.forEach((k, v) -> {
+            sseClient.sendMessage(k, UUID.randomUUID().toString(), msg, myAccount);
+        });
+        return "ok";
+    }
 
     @GetMapping(value = "/send", produces = "text/event-stream")
     public String sendMsg(@RequestParam String msg, @RequestParam String targetAccount) {
